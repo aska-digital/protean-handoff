@@ -16,6 +16,19 @@ audited. Do not rely on phone approvals or phone steering until the
 ingredient is installed, configured, and independently verified on the
 serving machine.
 
+## Do you need this?
+
+ROLE: Phone orchestration at the existing Hermes skill edge. It lets an operator inspect, steer, and approve Protean lane work from a phone over the existing gateway, with no new adapter, transport, daemon, core edit, or slash-command change.
+
+USE WHEN:
+- The operator walks away from the laptop and must read lane state, steer a live lane, or approve or deny a consequential action from the paired operator chat.
+- Lane state must persist across sleep as one disk-backed snapshot per lane plus an append-only journal, with every command recorded under an idempotency key.
+- Approvals must stay pending across sleep, bound to an exact target fingerprint and re-checked at execution time.
+
+SKIP WHEN:
+- The ingredient is not deployed and audited on the serving machine. This README states the leading-slash surface is the supported surface until then, and phone approvals must not be relied on.
+- The need is automatic execution, self-approval, new transports, or credential handling in chat. This README lists each as something the ingredient never does.
+
 ## What it does
 
 - Lets the operator leave the laptop and read lane state on a phone, steer
