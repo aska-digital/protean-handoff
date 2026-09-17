@@ -1,0 +1,28 @@
+{
+  "slug": "protean-handoff",
+  "version": "1.0.0",
+  "contract": "# Protean Handoff",
+  "license": "MIT",
+  "kind": "skills",
+  "installTargets": [
+    "skills/protean-handoff",
+    "scripts/protean-handoff",
+    "gates/protean-handoff"
+  ],
+  "requires": [],
+  "recommends": [],
+  "gates": [
+    {
+      "name": "payload",
+      "cwd": ".",
+      "postInstall": true,
+      "cmd": "python3 scripts/verify.py --payload-only --root ."
+    },
+    {
+      "name": "tests",
+      "cwd": ".",
+      "postInstall": false,
+      "cmd": "python3 tests/test_handoff.py"
+    }
+  ]
+}
