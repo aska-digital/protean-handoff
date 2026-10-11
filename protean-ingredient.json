@@ -1,13 +1,13 @@
 {
   "slug": "protean-handoff",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "contract": "# Protean Handoff",
   "license": "MIT",
   "kind": "skills",
   "installTargets": [
-    "skills/protean-handoff",
-    "scripts/protean-handoff",
-    "gates/protean-handoff"
+    "SKILL.md",
+    "scripts",
+    "references"
   ],
   "requires": [],
   "recommends": [],
