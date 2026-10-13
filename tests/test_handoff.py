@@ -417,6 +417,49 @@ class TestApprovals(Fixture):
         granted = approvals_mod.approve(self.state, opened["approval_id"], OWNER, env={})
         self.assertEqual(granted["status"], "approved")
 
+    def test_lane_hold_opened_after_grant_blocks_consumption_until_released(self):
+        self._assert_hold_blocks_consumption("lane")
+
+    def test_project_hold_opened_after_grant_blocks_consumption_until_released(self):
+        self._assert_hold_blocks_consumption("project")
+
+    def _assert_hold_blocks_consumption(self, scope):
+        opened = self.request_merge()
+        oid = opened["approval_id"]
+        approvals_mod.approve(self.state, oid, OWNER, env={})
+        hold = approvals_mod.hold(
+            self.state, lane_id=self.lane_id if scope == "lane" else None,
+            actor_user_id=OWNER_USER, platform="whatsapp", chat_id=HOME_CHAT)
+        before = self.ledger_events().count("consumed")
+        with self.assertRaises(lib.HandoffError) as blocked:
+            approvals_mod.consume_approval(
+                self.state, oid,
+                observed_spec={"repo": "/tmp/ph-repo", "base": "main", "head_sha": HEAD_SHA},
+                receipt_path=self.receipt)
+        self.assertEqual(blocked.exception.code, "E_HOLD_ACTIVE")
+        self.assertIn(hold["hold_id"], blocked.exception.message)
+        self.assertEqual(self.ledger_events().count("consumed"), before)
+        record, _, _ = approvals_mod._load_record(self.state, oid)
+        self.assertEqual(record["status"], "approved")
+        approvals_mod.release(self.state, hold["hold_id"], identity=OWNER, env={})
+        consumed = approvals_mod.consume_approval(
+            self.state, oid,
+            observed_spec={"repo": "/tmp/ph-repo", "base": "main", "head_sha": HEAD_SHA},
+            receipt_path=self.receipt)
+        self.assertEqual(consumed["status"], "consumed")
+        self.assertTrue(consumed["executed"])
+
+
+    def test_repeat_approve_of_granted_item_obeys_new_hold(self):
+        opened = self.request_merge()
+        approvals_mod.approve(self.state, opened["approval_id"], OWNER, env={})
+        approvals_mod.hold(self.state, lane_id=self.lane_id, actor_user_id=OWNER_USER,
+                           platform="whatsapp", chat_id=HOME_CHAT)
+        with self.assertRaises(lib.HandoffError) as blocked:
+            approvals_mod.approve(self.state, opened["approval_id"], OWNER, env={})
+        self.assertEqual(blocked.exception.code, "E_HOLD_ACTIVE")
+        self.assertNotIn("consumed", self.ledger_events())
+
     def test_project_wide_hold_covers_every_lane(self):
         opened = self.request_merge()
         approvals_mod.hold(self.state, reason="project freeze", actor_user_id=OWNER_USER,
