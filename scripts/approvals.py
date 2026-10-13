@@ -369,6 +369,18 @@ def _consumed_receipt(record, state_dir, note="duplicate: already consumed"):
     )
 
 
+def _check_holds(state_dir, record, actor=None, now=None):
+    """A grant never bypasses a hold opened before its execution read-back."""
+    holds = active_holds(state_dir, record.get("lane_id"), now=now)
+    if holds:
+        _append(state_dir, "refused", record, actor=actor, code="E_HOLD_ACTIVE",
+                reason="hold %s covers this lane" % holds[0]["hold_id"])
+        raise lib.HandoffError("E_HOLD_ACTIVE",
+                               "approval blocked: hold %s is open" % holds[0]["hold_id"],
+                               "next: release %s" % holds[0]["hold_id"],
+                               evidence=[holds[0]["_path"], approvals_path(state_dir)])
+
+
 def approve(state_dir, approval_id, identity, authz=None, env=None, observed_spec=None,
             explicit_fingerprint=None, consume=False, receipt_path=None,
             observed_delivery=None, now=None, reason=None):
@@ -401,6 +413,7 @@ def approve(state_dir, approval_id, identity, authz=None, env=None, observed_spe
                 reason="row is %s" % status)
         raise lib.HandoffError("E_%s_APPROVAL" % status.upper(), lib.uniform_refusal(approval_id),
                                "next: request a fresh approval", evidence=[approvals_path(state_dir)])
+    _check_holds(state_dir, record, actor=actor, now=now)
     if status == "approved":
         # already granted; a second approve before execution is an idempotent echo
         return lib.ok_result(approval_id=approval_id, status="approved", duplicate=True,
@@ -408,15 +421,6 @@ def approve(state_dir, approval_id, identity, authz=None, env=None, observed_spe
                              evidence=[approvals_path(state_dir)],
                              next="next: none - lane %s must report the read-back"
                                   % record.get("lane_id"))
-
-    holds = active_holds(state_dir, record.get("lane_id"), now=now)
-    if holds:
-        _append(state_dir, "refused", record, actor=actor, code="E_HOLD_ACTIVE",
-                reason="hold %s covers this lane" % holds[0]["hold_id"])
-        raise lib.HandoffError("E_HOLD_ACTIVE",
-                               "approval blocked: hold %s is open" % holds[0]["hold_id"],
-                               "next: release %s" % holds[0]["hold_id"],
-                               evidence=[holds[0]["_path"], approvals_path(state_dir)])
 
     # fingerprint re-check when the caller supplied a fresh live target read-back
     if observed_spec is not None or explicit_fingerprint is not None:
@@ -484,6 +488,7 @@ def consume_approval(state_dir, approval_id, observed_spec=None, explicit_finger
                                lib.uniform_refusal(approval_id),
                                "next: approve %s" % approval_id,
                                evidence=[approvals_path(state_dir)])
+    _check_holds(state_dir, record, actor=actor, now=now)
     if observed_spec is None and explicit_fingerprint is None:
         _append(state_dir, "refused", record, actor=actor, code="E_NO_READBACK",
                 reason="consume attempted without a live target read-back")
